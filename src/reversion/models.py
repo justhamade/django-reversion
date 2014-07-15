@@ -15,6 +15,7 @@ from django.db.models.signals import pre_save, post_save
 from django.dispatch.dispatcher import Signal, _make_id
 from django.utils.translation import ugettext_lazy as _
 from django.utils.encoding import force_text, python_2_unicode_compatible
+from lib.pokemon.base.base import ShardedModel
 
 
 def safe_revert(versions):
@@ -45,7 +46,7 @@ UserModel = getattr(settings, 'AUTH_USER_MODEL', 'auth.User')
 
 
 @python_2_unicode_compatible
-class Revision(models.Model):
+class Revision(ShardedModel, models.Model):
     
     """A group of related object versions."""
     
@@ -58,17 +59,16 @@ class Revision(models.Model):
     date_created = models.DateTimeField(auto_now_add=True,
                                         verbose_name=_("date created"),
                                         help_text="The date and time this revision was created.")
-    
-    user = models.ForeignKey(UserModel,
-                             blank=True,
-                             null=True,
-                             verbose_name=_("user"),
-                             help_text="The user who created this revision.")
+
+    user_content_type = models.ForeignKey(ContentType, blank=True, null=True)
+    user_object_id = models.PositiveIntegerField(blank=True, null=True)
+    user = generic.GenericForeignKey('user_content_type', 'user_object_id')
     
     comment = models.TextField(blank=True,
                                verbose_name=_("comment"),
                                help_text="A text comment on this revision.")
-    
+    _dbshards_key = "id"
+
     def revert(self, delete=False):
         """Reverts all objects in this revision."""
         version_set = self.version_set.all()
@@ -127,7 +127,7 @@ def has_int_pk(model):
             
 
 @python_2_unicode_compatible
-class Version(models.Model):
+class Version(ShardedModel, models.Model):
     
     """A saved version of a database model."""
     
@@ -155,7 +155,9 @@ class Version(models.Model):
     serialized_data = models.TextField(help_text="The serialized form of this version of the model.")
     
     object_repr = models.TextField(help_text="A string representation of the object.")
-    
+
+    _dbshards_key = "revision_id"
+
     @property
     def object_version(self):
         """The stored version of the model."""
@@ -215,7 +217,9 @@ post_revision_commit = Signal(providing_args=["instances", "revision", "versions
 def check_for_receivers(sender, sending_signal, **kwargs):
     """Checks that no other signal receivers have been connected."""
     if len(sending_signal._live_receivers(_make_id(sender))) > 1:
-        warnings.warn("pre_save and post_save signals will not longer be sent for Revision and Version models in django-reversion 1.8. Please use the pre_revision_commit and post_revision_commit signals instead.")
+        ### TPCi Edit: We will have to fix this in the next upgrade
+        ### warnings.warn("pre_save and post_save signals will not longer be sent for Revision and Version models in django-reversion 1.8. Please use the pre_revision_commit and post_revision_commit signals instead.")
+        pass
 
 check_for_pre_save_receivers = partial(check_for_receivers, sending_signal=pre_save)
 check_for_post_save_receivers = partial(check_for_receivers, sending_signal=post_save) 

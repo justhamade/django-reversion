@@ -15,12 +15,15 @@ class Migration(DataMigration):
         for version in orm.Version.objects.filter(object_id_int__isnull=True).iterator():
             try:
                 content_type = ContentType.objects.get_for_id(version.content_type_id)
-            except AttributeError:
+            except (AttributeError, ContentType.DoesNotExist):
                 version.delete()  # This version refers to a content type that doesn't exist any more.
                 continue
             model = content_type.model_class()
             if has_int_pk(model):
-                version.object_id_int = int(version.object_id)
+                try:
+                    version.object_id_int = int(version.object_id)
+                except ValueError:
+                    version.object_id_int = None
                 version.save()
 
 
@@ -70,7 +73,8 @@ class Migration(DataMigration):
             'comment': ('django.db.models.fields.TextField', [], {'blank': 'True'}),
             'date_created': ('django.db.models.fields.DateTimeField', [], {'auto_now_add': 'True', 'blank': 'True'}),
             'id': ('django.db.models.fields.AutoField', [], {'primary_key': 'True'}),
-            'user': ('django.db.models.fields.related.ForeignKey', [], {'to': "orm['auth.User']", 'null': 'True', 'blank': 'True'})
+            'user_object_id': ('django.db.models.fields.PositiveIntegerField', [], {'null': 'True', 'blank': 'True'}),
+            'user_content_type': ('django.db.models.fields.related.ForeignKey', [], {'to': "orm['contenttypes.ContentType']"})
         },
         'reversion.version': {
             'Meta': {'object_name': 'Version'},

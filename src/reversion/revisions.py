@@ -16,6 +16,7 @@ from django.db.models import Q, Max
 from django.db.models.query import QuerySet
 from django.db.models.signals import post_save, pre_delete
 from django.utils.encoding import force_text
+from django.utils.encoding import smart_unicode
 
 from reversion.models import Revision, Version, VERSION_ADD, VERSION_CHANGE, VERSION_DELETE, has_int_pk, pre_revision_commit, post_revision_commit
 
@@ -93,7 +94,7 @@ class VersionAdapter(object):
         
     def get_version_data(self, obj, type_flag, db=None):
         """Creates the version data to be saved to the version model."""
-        object_id = force_text(obj.pk)
+        object_id = smart_unicode(obj.pk)
         db = db or DEFAULT_DB_ALIAS
         content_type = ContentType.objects.db_manager(db).get_for_model(obj)
         if has_int_pk(obj.__class__):
@@ -106,7 +107,7 @@ class VersionAdapter(object):
             "content_type": content_type,
             "format": self.get_serialization_format(),
             "serialized_data": self.get_serialized_data(obj),
-            "object_repr": force_text(obj),
+            "object_repr": smart_unicode(obj),
             "type": type_flag
         }
 
@@ -459,11 +460,11 @@ class RevisionManager(object):
             # Only save if we're always saving, or have changes.
             if save_revision:                
                 # Save a new revision.
-                revision = Revision(
-                    manager_slug = self._manager_slug,
-                    user = user,
-                    comment = comment,
-                )
+                revision = Revision()
+                revision.manager_slug = self._manager_slug
+                if user:
+                    revision.user = user
+                revision.comment = comment
                 # Send the pre_revision_commit signal.
                 pre_revision_commit.send(self,
                     instances = ordered_objects,
